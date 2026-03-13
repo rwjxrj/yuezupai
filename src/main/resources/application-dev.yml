@@ -1,0 +1,29 @@
+server:
+  port: 8080
+
+spring:
+  # MySQL
+  datasource:
+    url: jdbc:mysql://localhost:3306/yuezupai?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&useSSL=false
+    username: root
+    password: 1234
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # Redis
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:          # 本地开发没密码就留空
+      database: 0
+
+# 开发环境文件存储（存到本地项目目录方便调试）
+file:
+  local:
+    path: ./upload/
+    url-prefix: http://localhost:8080/upload/
+
+# 开发环境开启SQL日志
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
