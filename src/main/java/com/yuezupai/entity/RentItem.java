@@ -3,9 +3,11 @@ package com.yuezupai.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import lombok.Data;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @TableName(value = "rent_item", autoResultMap = true)
@@ -26,8 +28,9 @@ public class RentItem {
     private Integer status;
     private Integer allowReserve;
 
-    /** 计费规则JSON，用String存取，业务层手动解析 */
-    private String billingRule;
+    // ★ 改为 Map 类型，MyBatis-Plus 自动 JSON 序列化/反序列化
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Map<String, Object> billingRule;
 
     private BigDecimal priceNormal;
     private BigDecimal priceVip;

@@ -73,17 +73,37 @@ public class AuthServiceImpl implements AuthService {
             log.info("新用户注册: userId={}", user.getUserId());
         }
 
-        // 3. 生成JWT
+        // 3. 生成Token并返回
+        Map<String, Object> result = buildLoginResult(user);
+        result.put("isNewUser", isNewUser);
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> devLogin(Long userId) {
+        SysUser user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在，请先在数据库插入测试用户");
+        }
+        log.info("[DEV] 测试登录: userId={}, role={}", user.getUserId(), user.getRole());
+        return buildLoginResult(user);
+    }
+
+    /**
+     * 公共方法：生成Token + 存Redis + 组装返回数据
+     */
+    private Map<String, Object> buildLoginResult(SysUser user) {
+        // 生成JWT
         String token = jwtUtil.generateToken(user.getUserId(), user.getRole());
 
-        // 4. 存Redis（支持单设备登录，新Token会覆盖旧Token）
+        // 存Redis（新Token覆盖旧Token，实现单设备登录）
         String redisKey = Constants.REDIS_TOKEN_PREFIX + user.getUserId();
-        redisTemplate.opsForValue().set(redisKey, token, Constants.TOKEN_EXPIRE_SECONDS, TimeUnit.SECONDS);
+        redisTemplate.opsForValue().set(redisKey, token,
+                Constants.TOKEN_EXPIRE_SECONDS, TimeUnit.SECONDS);
 
-        // 5. 组装返回
+        // 组装返回
         Map<String, Object> result = new HashMap<>();
         result.put("token", token);
-        result.put("isNewUser", isNewUser);
 
         Map<String, Object> userInfo = new HashMap<>();
         userInfo.put("userId", user.getUserId());

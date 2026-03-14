@@ -13,10 +13,6 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-/**
- * JWT 鉴权拦截器
- * 从请求头获取Token → 验证 → 放入UserContext → 放行
- */
 @Slf4j
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
@@ -37,6 +33,7 @@ public class AuthInterceptor implements HandlerInterceptor {
         // 1. 从请求头获取Token
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            log.warn("[AUTH] 失败-第1步: Header缺失或格式错误, authHeader={}", authHeader);
             writeError(response, ResultCode.UNAUTHORIZED);
             return false;
         }
@@ -45,16 +42,25 @@ public class AuthInterceptor implements HandlerInterceptor {
 
         // 2. 验证JWT格式和签名
         if (!jwtUtil.validateToken(token)) {
+            log.warn("[AUTH] 失败-第2步: JWT签名验证不通过");
             writeError(response, ResultCode.UNAUTHORIZED);
             return false;
         }
 
-        // 3. 检查Redis中是否存在（支持踢下线）
+        // 3. 检查Redis中是否存在
         Long userId = jwtUtil.getUserId(token);
         String redisKey = Constants.REDIS_TOKEN_PREFIX + userId;
-        String savedToken = (String) redisTemplate.opsForValue().get(redisKey);
+        Object redisValue = redisTemplate.opsForValue().get(redisKey);
 
-        if (savedToken == null || !savedToken.equals(token)) {
+        log.info("[AUTH] 第3步调试: userId={}, redisKey={}, redisValue类型={}, redisValue={}",
+                userId,
+                redisKey,
+                redisValue != null ? redisValue.getClass().getName() : "null",
+                redisValue != null ? redisValue.toString().substring(0, Math.min(30, redisValue.toString().length())) + "..." : "null"
+        );
+
+        if (redisValue == null || !token.equals(redisValue.toString())) {
+            log.warn("[AUTH] 失败-第3步: Redis中Token不匹配或不存在");
             writeError(response, ResultCode.UNAUTHORIZED);
             return false;
         }
@@ -63,6 +69,7 @@ public class AuthInterceptor implements HandlerInterceptor {
         String role = jwtUtil.getRole(token);
         UserContext.setUserId(userId);
         UserContext.setRole(role);
+        log.info("[AUTH] 验证通过: userId={}, role={}", userId, role);
 
         return true;
     }
@@ -70,13 +77,11 @@ public class AuthInterceptor implements HandlerInterceptor {
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response,
                                 Object handler, Exception ex) {
-        // 请求结束清除上下文，防止内存泄漏
         UserContext.clear();
     }
 
-    /** 写错误响应 */
     private void writeError(HttpServletResponse response, ResultCode resultCode) throws Exception {
-        response.setStatus(200);  // HTTP状态码统一200，业务状态码在body里
+        response.setStatus(200);
         response.setContentType("application/json;charset=UTF-8");
         response.getWriter().write(objectMapper.writeValueAsString(R.fail(resultCode)));
     }
